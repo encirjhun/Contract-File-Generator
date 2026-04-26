@@ -28,6 +28,8 @@ export default function App() {
   const [excelData, setExcelData] = useState<RecordData[]>([]);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [atmTemplateFile, setAtmTemplateFile] = useState<File | null>(null);
+  const [memoTemplateFile, setMemoTemplateFile] = useState<File | null>(null);
+  const [deploymentTemplateFile, setDeploymentTemplateFile] = useState<File | null>(null);
   const [excelFileName, setExcelFileName] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -35,8 +37,9 @@ export default function App() {
 
   const excelInputRef = useRef<HTMLInputElement>(null);
   const templateInputRef = useRef<HTMLInputElement>(null);
-
   const atmTemplateInputRef = useRef<HTMLInputElement>(null);
+  const memoTemplateInputRef = useRef<HTMLInputElement>(null);
+  const deploymentTemplateInputRef = useRef<HTMLInputElement>(null);
 
   const handleExcelUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,6 +101,32 @@ export default function App() {
     if (atmTemplateInputRef.current) atmTemplateInputRef.current.value = '';
   };
 
+  const handleMemoTemplateUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.name.endsWith('.docx')) {
+        setMemoTemplateFile(file);
+        setError(null);
+      } else {
+        setError('Please upload a valid .docx template for the Memo.');
+      }
+    }
+    if (memoTemplateInputRef.current) memoTemplateInputRef.current.value = '';
+  };
+
+  const handleDeploymentTemplateUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.name.endsWith('.docx')) {
+        setDeploymentTemplateFile(file);
+        setError(null);
+      } else {
+        setError('Please upload a valid .docx template for the Deployment Letter.');
+      }
+    }
+    if (deploymentTemplateInputRef.current) deploymentTemplateInputRef.current.value = '';
+  };
+
   const clearExcel = () => {
     setExcelData([]);
     setExcelFileName('');
@@ -109,6 +138,14 @@ export default function App() {
 
   const clearAtmTemplate = () => {
     setAtmTemplateFile(null);
+  };
+
+  const clearMemoTemplate = () => {
+    setMemoTemplateFile(null);
+  };
+
+  const clearDeploymentTemplate = () => {
+    setDeploymentTemplateFile(null);
   };
 
   const downloadExcelTemplate = () => {
@@ -277,7 +314,7 @@ export default function App() {
   };
 
   const generateWordFiles = async () => {
-    if ((!templateFile && !atmTemplateFile) || excelData.length === 0) return;
+    if ((!templateFile && !atmTemplateFile && !memoTemplateFile && !deploymentTemplateFile) || excelData.length === 0) return;
 
     setIsGenerating(true);
     setProgress(0);
@@ -285,31 +322,41 @@ export default function App() {
 
     try {
       const zip = new JSZip();
-      const contractBuffer = templateFile ? await templateFile.arrayBuffer() : null;
-      const atmBuffer = atmTemplateFile ? await atmTemplateFile.arrayBuffer() : null;
+      
+      const templates = [
+        { file: templateFile, suffix: 'Contract' },
+        { file: atmTemplateFile, suffix: 'ATM_Endorsement' },
+        { file: memoTemplateFile, suffix: 'Memo_Random' },
+        { file: deploymentTemplateFile, suffix: 'Deployment_Letter' }
+      ];
+
+      // Read all active templates first
+      const loadedTemplates = await Promise.all(
+        templates.map(async (t) => {
+          if (t.file) {
+            return { buffer: await t.file.arrayBuffer(), suffix: t.suffix };
+          }
+          return null;
+        })
+      );
 
       for (let i = 0; i < excelData.length; i++) {
         const record = excelData[i];
         const baseName = (record.Name || record.name || record['Full Name'] || record.Names || `Staff_${i + 1}`).toString().replace(/[/\\?%*:|"<>]/g, '-').trim();
 
-        // Process Contract
-        if (contractBuffer) {
-          const zipContent = new PizZip(contractBuffer);
-          const doc = new Docxtemplater(zipContent, { paragraphLoop: true, linebreaks: true });
-          doc.setData(record);
-          doc.render();
-          const out = doc.getZip().generate({ type: 'blob' });
-          zip.file(`${baseName}_Contract.docx`, out);
-        }
-
-        // Process ATM Endorsement
-        if (atmBuffer) {
-          const zipContent = new PizZip(atmBuffer);
-          const doc = new Docxtemplater(zipContent, { paragraphLoop: true, linebreaks: true });
-          doc.setData(record);
-          doc.render();
-          const out = doc.getZip().generate({ type: 'blob' });
-          zip.file(`${baseName}_ATM_Endorsement.docx`, out);
+        for (const t of loadedTemplates) {
+          if (t) {
+            try {
+              const zipContent = new PizZip(t.buffer);
+              const doc = new Docxtemplater(zipContent, { paragraphLoop: true, linebreaks: true });
+              doc.setData(record);
+              doc.render();
+              const out = doc.getZip().generate({ type: 'blob' });
+              zip.file(`${baseName}_${t.suffix}.docx`, out);
+            } catch (err) {
+              console.error(`Error processing ${t.suffix} for ${baseName}`, err);
+            }
+          }
         }
         
         setProgress(Math.round(((i + 1) / excelData.length) * 100));
@@ -464,10 +511,10 @@ export default function App() {
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${atmTemplateFile ? 'bg-purple-600 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
                   <FileCheck className="w-5 h-5" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0" title={atmTemplateFile?.name}>
                   <p className={`text-[10px] font-bold uppercase tracking-widest ${atmTemplateFile ? 'text-purple-400' : 'text-slate-400'}`}>Template 02</p>
                   <p className={`text-sm font-bold truncate ${atmTemplateFile ? 'text-purple-900' : 'text-slate-500'}`}>
-                    {atmTemplateFile ? atmTemplateFile.name : 'Choose ATM Endorsement'}
+                    {atmTemplateFile ? atmTemplateFile.name : 'ATM Endorsement'}
                   </p>
                 </div>
                 {atmTemplateFile && (
@@ -477,9 +524,61 @@ export default function App() {
                 )}
                 <input type="file" ref={atmTemplateInputRef} onChange={handleAtmTemplateUpload} accept=".docx" className="hidden" />
               </div>
+
+              {/* MEMO RANDOM TEMPLATE */}
+              <div 
+                onClick={() => memoTemplateInputRef.current?.click()}
+                className={`flex items-center gap-4 p-4 border rounded-2xl cursor-pointer transition-all duration-300 ${
+                  memoTemplateFile 
+                    ? 'border-emerald-600 bg-emerald-50 shadow-sm shadow-emerald-100' 
+                    : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${memoTemplateFile ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0" title={memoTemplateFile?.name}>
+                  <p className={`text-[10px] font-bold uppercase tracking-widest ${memoTemplateFile ? 'text-emerald-400' : 'text-slate-400'}`}>Template 03</p>
+                  <p className={`text-sm font-bold truncate ${memoTemplateFile ? 'text-emerald-900' : 'text-slate-500'}`}>
+                    {memoTemplateFile ? memoTemplateFile.name : 'Memo Random'}
+                  </p>
+                </div>
+                {memoTemplateFile && (
+                  <button onClick={(e) => { e.stopPropagation(); clearMemoTemplate(); }} className="p-2 hover:bg-emerald-100 rounded-lg text-emerald-400">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                <input type="file" ref={memoTemplateInputRef} onChange={handleMemoTemplateUpload} accept=".docx" className="hidden" />
+              </div>
+
+              {/* DEPLOYMENT TEMPLATE */}
+              <div 
+                onClick={() => deploymentTemplateInputRef.current?.click()}
+                className={`flex items-center gap-4 p-4 border rounded-2xl cursor-pointer transition-all duration-300 ${
+                  deploymentTemplateFile 
+                    ? 'border-amber-600 bg-amber-50 shadow-sm shadow-amber-100' 
+                    : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${deploymentTemplateFile ? 'bg-amber-600 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                  <FileCheck className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0" title={deploymentTemplateFile?.name}>
+                  <p className={`text-[10px] font-bold uppercase tracking-widest ${deploymentTemplateFile ? 'text-amber-400' : 'text-slate-400'}`}>Template 04</p>
+                  <p className={`text-sm font-bold truncate ${deploymentTemplateFile ? 'text-amber-900' : 'text-slate-500'}`}>
+                    {deploymentTemplateFile ? deploymentTemplateFile.name : 'Deployment Letter'}
+                  </p>
+                </div>
+                {deploymentTemplateFile && (
+                  <button onClick={(e) => { e.stopPropagation(); clearDeploymentTemplate(); }} className="p-2 hover:bg-amber-100 rounded-lg text-amber-400">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                <input type="file" ref={deploymentTemplateInputRef} onChange={handleDeploymentTemplateUpload} accept=".docx" className="hidden" />
+              </div>
               
               <AnimatePresence>
-                {(!templateFile || !atmTemplateFile) && (
+                {(!templateFile || !atmTemplateFile || !memoTemplateFile || !deploymentTemplateFile) && (
                   <motion.div 
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -595,10 +694,10 @@ export default function App() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className={`w-5 h-5 rounded-lg flex items-center justify-center ${templateFile ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-400'}`}>
+                <div className={`w-5 h-5 rounded-lg flex items-center justify-center ${templateFile || atmTemplateFile || memoTemplateFile || deploymentTemplateFile ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-400'}`}>
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
-                <span className={`text-[11px] font-bold uppercase tracking-wider ${templateFile ? 'text-slate-700' : 'text-slate-400'}`}>
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${templateFile || atmTemplateFile || memoTemplateFile || deploymentTemplateFile ? 'text-slate-700' : 'text-slate-400'}`}>
                   Template Ready
                 </span>
               </div>
@@ -631,7 +730,7 @@ export default function App() {
                 ) : (
                   <>
                     <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-                    <span className="tracking-wide">Generate {excelData.length > 0 ? (templateFile && atmTemplateFile ? excelData.length * 2 : excelData.length) : ''} Files</span>
+                    <span className="tracking-wide">Generate Batch Files</span>
                     <div className="absolute -top-2 -right-2 bg-blue-400 text-white text-[10px] py-0.5 px-2 rounded-full shadow-md border-2 border-white scale-0 group-hover:scale-100 transition-transform">
                       ZIP
                     </div>
