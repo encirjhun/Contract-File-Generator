@@ -719,7 +719,7 @@ export default function App() {
               )}
               <button 
                 onClick={generateWordFiles}
-                disabled={isGenerating || (!templateFile && !atmTemplateFile) || excelData.length === 0}
+                disabled={isGenerating || (!templateFile && !atmTemplateFile && !memoTemplateFile && !deploymentTemplateFile) || excelData.length === 0}
                 className={`group relative bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-2xl shadow-xl shadow-blue-200 flex items-center gap-3 transition-all duration-300 active:scale-95 disabled:grayscale disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed`}
               >
                 {isGenerating ? (

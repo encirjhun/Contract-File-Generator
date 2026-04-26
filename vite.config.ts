@@ -4,7 +4,6 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig({
-  base: '/Contract-File-Generator/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
